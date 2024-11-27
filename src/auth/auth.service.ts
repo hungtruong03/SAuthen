@@ -1,17 +1,18 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
+import { PartnerRegisterDto } from './dto/partner-register.dto';
 
 @Injectable()
 export class AuthService {
     constructor(private prisma: PrismaService, private jwtService: JwtService,) { }
 
     async register(dto: RegisterDto) {
-        const { username, password, role, firstName, lastName, email, phone } = dto;
+        const { username, password, firstName, lastName, email, phone } = dto;
 
         // Check if username already exists
         const existingAccount = await this.prisma.account.findUnique({
@@ -48,7 +49,7 @@ export class AuthService {
             data: {
                 username,
                 password: hashedPassword,
-                role,
+                role: 'USER',
             },
         });
 
@@ -72,10 +73,61 @@ export class AuthService {
         };
     }
 
+    async registerPartner(partnerRegisterDto: PartnerRegisterDto) {
+        const {
+            username,
+            password,
+            companyName,
+            avatar,
+            field,
+            address,
+            gpsLat,
+            gpsLong,
+        } = partnerRegisterDto;
+
+        // Check if the username is already taken
+        const existingAccount = await this.prisma.account.findUnique({ where: { username } });
+        if (existingAccount) {
+            throw new ConflictException('Username is already taken');
+        }
+
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create account and partner
+        const account = await this.prisma.account.create({
+            data: {
+                username,
+                password: hashedPassword,
+                role: 'PARTNER',
+                partner: {
+                    create: {
+                        companyName,
+                        avatar,
+                        field,
+                        address,
+                        gpsLat,
+                        gpsLong,
+                        status: 'Unverified',
+                    },
+                },
+            },
+        });
+
+        return {
+            message: 'Partner registered successfully',
+            accountId: account.id,
+        };
+    }
+
     async login(dto: LoginDto) {
         const { username, password } = dto;
 
-        const account = await this.prisma.account.findUnique({ where: { username } });
+        const account = await this.prisma.account.findUnique({
+            where: { username },
+            include: { partner: true }, // Include partner data to check status
+        });
+
         if (!account) {
             throw new UnauthorizedException('Invalid username');
         }
@@ -84,6 +136,12 @@ export class AuthService {
         if (!isPasswordValid) {
             throw new UnauthorizedException('Invalid password');
         }
+
+        // Check if the account is a partner and is unverified
+        if (account.role === 'PARTNER' && account.partner?.status === 'Unverified') {
+            throw new ForbiddenException('Your account is not verified yet. Please contact support.');
+        }
+
 
         // Generate Access Token and Refresh Token
         const accessToken = this.generateAccessToken(account.id, account.role);

@@ -3,7 +3,7 @@ import { FriendsService } from './friend.service';
 
 @Controller('friend')
 export class FriendsController {
-  constructor(private friendsService: FriendsService) {}
+  constructor(private friendsService: FriendsService) { }
 
   // Add friend
   @Post('add')
@@ -11,7 +11,7 @@ export class FriendsController {
     if (req.role !== 'USER') {
       throw new UnauthorizedException('You are not authorized to access this resource');
     }
-    
+
     const userId = req.userId;
     return this.friendsService.addFriend(userId, friendId);
   }

@@ -11,10 +11,6 @@ export class RegisterDto {
 
     @IsString()
     @IsNotEmpty()
-    role: 'USER' | 'PARTNER' | 'ADMIN';
-
-    @IsString()
-    @IsNotEmpty()
     firstName: string;
 
     @IsString()

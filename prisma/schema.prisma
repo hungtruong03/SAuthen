@@ -43,11 +43,11 @@ model Partner {
   accountId     Int       @unique
   companyName   String
   avatar        String?
-  field         String?
+  field         String
   address       String
   gpsLat        Float
   gpsLong       Float
-  status        String
+  status        Status    @default(Unverified)
   account       Account   @relation("PartnerAccount", fields: [accountId], references: [id])
 }
 
@@ -55,4 +55,9 @@ enum Role {
   USER
   ADMIN
   PARTNER
+}
+
+enum Status {
+  Unverified
+  Verified
 }

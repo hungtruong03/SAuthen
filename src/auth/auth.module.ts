@@ -9,12 +9,14 @@ import { PrismaModule } from '../prisma/prisma.module';
   imports: [
     PrismaModule,
     JwtModule.register({
+      global: true,
       secret: process.env.JWT_SECRET || 'default_secret',
       signOptions: { expiresIn: '15m' },
     }),
   ],
   providers: [AuthService],
   controllers: [AuthController],
+  exports: [JwtModule],
 })
 
 export class AuthModule implements NestModule {
