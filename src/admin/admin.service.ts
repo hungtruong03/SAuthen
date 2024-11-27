@@ -1,7 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FindAccountDto } from './dto/find-account.dto';
 import * as bcrypt from 'bcrypt';
+import { CreateUserDto } from './dto/create-user.dto';
+import { CreatePartnerDto } from './dto/create-partner.dto';
 
 @Injectable()
 export class AdminService {
@@ -63,6 +65,114 @@ export class AdminService {
         await this.prisma.account.delete({ where: { id: account.id } });
 
         return { message: 'Account deleted successfully' };
+    }
+
+    async createUserAccount(createUserAccountDto: CreateUserDto) {
+        const { username, password, firstName, lastName, phone, email, facebook, avatar } = createUserAccountDto;
+
+        // Check if username already exists
+        const existingAccount = await this.prisma.account.findUnique({
+            where: { username },
+        });
+
+        if (existingAccount) {
+            throw new ConflictException('Username is already taken');
+        }
+
+        // Check if phone number already exists
+        const existingPhone = await this.prisma.user.findUnique({
+            where: { phone },
+        });
+
+        if (existingPhone) {
+            throw new ConflictException('Phone number is already taken');
+        }
+
+        // Check if email already exists
+        const existingEmail = await this.prisma.user.findUnique({
+            where: { email },
+        });
+
+        if (existingEmail) {
+            throw new ConflictException('Email is already taken');
+        }
+
+        // Create the account
+        const account = await this.prisma.account.create({
+            data: {
+                username,
+                password: await this.hashPassword(password),
+                role: 'USER',
+            },
+        });
+
+        // Create the user
+        await this.prisma.user.create({
+            data: {
+                accountId: account.id,
+                firstName,
+                lastName,
+                phone,
+                email,
+                facebook,
+                avatar,
+            },
+        });
+
+        return { message: 'User account created successfully' };
+    }
+
+    async createPartnerAccount(createPartnerAccountDto: CreatePartnerDto) {
+        const {
+            username,
+            password,
+            companyName,
+            avatar,
+            field,
+            address,
+            gpsLat,
+            gpsLong,
+            status,
+        } = createPartnerAccountDto;
+
+        // Check if username already exists
+        const existingAccount = await this.prisma.account.findUnique({
+            where: { username },
+        });
+
+        if (existingAccount) {
+            throw new ConflictException('Username is already taken');
+        }
+
+        // Create the account
+        const account = await this.prisma.account.create({
+            data: {
+                username,
+                password: await this.hashPassword(password),
+                role: 'PARTNER',
+            },
+        });
+
+        // Create the partner
+        await this.prisma.partner.create({
+            data: {
+                accountId: account.id,
+                companyName,
+                avatar,
+                field,
+                address,
+                gpsLat,
+                gpsLong,
+                status,
+            },
+        });
+
+        return { message: 'Partner account created successfully' };
+    }
+
+    private async hashPassword(password: string): Promise<string> {
+        const salt = await bcrypt.genSalt();
+        return bcrypt.hash(password, salt);
     }
 
     async updateUserAccount(userId: number, updateData: any) {
