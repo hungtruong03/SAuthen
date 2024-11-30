@@ -6,13 +6,78 @@ import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import { PartnerRegisterDto } from './dto/partner-register.dto';
+import { InjectRedis } from '@nestjs-modules/ioredis';
+import { Redis } from 'ioredis';
 
 @Injectable()
 export class AuthService {
-    constructor(private prisma: PrismaService, private jwtService: JwtService,) { }
+    constructor(private prisma: PrismaService, private jwtService: JwtService, @InjectRedis() private readonly redisClient: Redis,) { }
+
+    async requestOtp(phone: string) {
+        const existingPhone = await this.prisma.user.findUnique({
+            where: { phone },
+        });
+
+        if (existingPhone) {
+            throw new ConflictException('Phone number is already registered');
+        }
+
+        const otpKey = `otp:${phone}`;
+        const cooldownKey = `otpCooldown:${phone}`;
+
+        // Check cooldown
+        const cooldown = await this.redisClient.get(cooldownKey);
+        if (cooldown) {
+            throw new BadRequestException(
+                'Please wait before requesting another OTP',
+            );
+        }
+
+        // Generate OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Store OTP
+        await this.redisClient.set(otpKey, otp, 'EX', 300);
+
+        // Set cooldown
+        await this.redisClient.set(cooldownKey, '1', 'EX', 30);
+
+        // Simulate sending OTP
+        console.log(`Sending OTP ${otp} to ${phone}`);
+
+        return { message: 'OTP sent successfully' };
+    }
+
+    async verifyOtp(phone: string, otp: string): Promise<boolean> {
+        const otpKey = `otp:${phone}`;
+        const storedOtp = await this.redisClient.get(otpKey);
+
+        if (!storedOtp || storedOtp !== otp) {
+            return false;
+        }
+
+        return true;
+    }
+
+    async deleteOtp(phone: string, otp: string): Promise<void> {
+        const otpKey = `otp:${phone}`;
+        const storedOtp = await this.redisClient.get(otpKey);
+
+        if (!storedOtp || storedOtp !== otp) {
+            return;
+        }
+
+        // Delete OTP after verification
+        await this.redisClient.del(otpKey);
+    }
 
     async register(dto: RegisterDto) {
-        const { username, password, firstName, lastName, email, phone } = dto;
+        const { username, password, firstName, lastName, email, phone, otp } = dto;
+
+        const isOtpValid = await this.verifyOtp(phone, otp);
+        if (!isOtpValid) {
+            throw new BadRequestException('Invalid or expired OTP');
+        }
 
         // Check if username already exists
         const existingAccount = await this.prisma.account.findUnique({
@@ -63,6 +128,9 @@ export class AuthService {
                 phone,
             },
         });
+
+        // Delete the OTP after successful registration
+        await this.verifyOtp(phone, otp);
 
         // Return the response
         return {

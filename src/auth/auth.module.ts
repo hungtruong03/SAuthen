@@ -4,9 +4,14 @@ import { AuthController } from './auth.controller';
 import { JwtMiddleware } from '../middlewares/jwt.middleware';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from '../prisma/prisma.module';
+import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [
+    RedisModule.forRoot({
+      type: 'single',
+      url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
+    }),
     PrismaModule,
     JwtModule.register({
       global: true,

@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -7,6 +7,14 @@ import { PartnerRegisterDto } from './dto/partner-register.dto';
 @Controller('auth')
 export class AuthController {
     constructor(private readonly authService: AuthService) { }
+
+    @Post('requestotp')
+    async requestOtp(@Body('phone') phone: string) {
+        if (!phone) {
+            throw new BadRequestException('Phone number is required');
+        }
+        return this.authService.requestOtp(phone);
+    }
 
     @Post('register')
     async register(@Body() registerDto: RegisterDto) {

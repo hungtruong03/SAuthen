@@ -23,4 +23,8 @@ export class RegisterDto {
     @IsEmail()
     @IsNotEmpty()
     email: string;
+
+    @IsString()
+    @IsNotEmpty()
+    otp: string;
 }
