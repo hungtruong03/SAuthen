@@ -12,11 +12,9 @@ export class AdminService {
     async getAccountInfo(findAccountDto: FindAccountDto) {
         const { userId, username } = findAccountDto;
 
-        // Query the database using userId or username
+        // Query the database
         const account = await this.prisma.account.findFirst({
-            where: {
-                OR: [{ id: userId }, { username }],
-            },
+            where: userId ? { id: userId } : { username },
             select: {
                 id: true,
                 username: true,
@@ -38,11 +36,9 @@ export class AdminService {
     async removeAccount(findAccountDto: FindAccountDto) {
         const { userId, username } = findAccountDto;
 
-        // Find the account by userId or username
+        // Find the account
         const account = await this.prisma.account.findFirst({
-            where: {
-                OR: [{ id: userId }, { username }],
-            },
+            where: userId ? { id: userId } : { username },
         });
 
         // Check if account exists
@@ -179,12 +175,20 @@ export class AdminService {
         const allowedUserFields = ['firstName', 'lastName', 'avatar', 'email', 'facebook'];
         const allowedAccountFields = ['password'];
 
-        const userData = this.filterFields(updateData, allowedUserFields);
+        const userData: { email?: string } = this.filterFields(updateData, allowedUserFields);
         const accountData = await this.filterAndHashPassword(updateData, allowedAccountFields);
 
         const user = await this.prisma.user.findUnique({ where: { accountId: userId } });
         if (!user) {
             throw new NotFoundException(`User with ID ${userId} not found`);
+        }
+
+        // Check if the email is unique (if provided)
+        if (userData.email) {
+            const existingUser = await this.prisma.user.findUnique({ where: { email: userData.email } });
+            if (existingUser && existingUser.accountId !== userId) {
+                throw new ConflictException(`Email ${userData.email} is already in use`);
+            }
         }
 
         // Update User table fields

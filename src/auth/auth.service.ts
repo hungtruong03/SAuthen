@@ -132,7 +132,6 @@ export class AuthService {
         // Delete the OTP after successful registration
         await this.verifyOtp(phone, otp);
 
-        // Return the response
         return {
             accountId: account.id,
             username: account.username,
@@ -191,15 +190,20 @@ export class AuthService {
     async login(dto: LoginDto) {
         const { username, password } = dto;
 
+        // Fetch the account and include related user or partner data
         const account = await this.prisma.account.findUnique({
             where: { username },
-            include: { partner: true }, // Include partner data to check status
+            include: {
+                user: true,    // Include user data for USER role
+                partner: true, // Include partner data for PARTNER role
+            },
         });
 
         if (!account) {
             throw new UnauthorizedException('Invalid username');
         }
 
+        // Verify the password
         const isPasswordValid = await bcrypt.compare(password, account.password);
         if (!isPasswordValid) {
             throw new UnauthorizedException('Invalid password');
@@ -209,7 +213,6 @@ export class AuthService {
         if (account.role === 'PARTNER' && account.partner?.status === 'Unverified') {
             throw new ForbiddenException('Your account is not verified yet. Please contact support.');
         }
-
 
         // Generate Access Token and Refresh Token
         const accessToken = this.generateAccessToken(account.id, account.role);
@@ -221,7 +224,40 @@ export class AuthService {
             data: { refreshToken },
         });
 
-        return { userId: account.id, accessToken, refreshToken };
+        // Construct the response
+        const response: any = {
+            userId: account.id,
+            accessToken,
+            refreshToken,
+            role: account.role,
+            account: {
+                username: account.username,
+                createdDate: account.createdDate,
+            },
+        };
+
+        // Include role-specific data
+        if (account.role === 'USER' && account.user) {
+            response.user = {
+                firstName: account.user.firstName,
+                lastName: account.user.lastName,
+                phone: account.user.phone,
+                email: account.user.email,
+                avatar: account.user.avatar,
+            };
+        } else if (account.role === 'PARTNER' && account.partner) {
+            response.partner = {
+                companyName: account.partner.companyName,
+                avatar: account.partner.avatar,
+                field: account.partner.field,
+                address: account.partner.address,
+                gpsLat: account.partner.gpsLat,
+                gpsLong: account.partner.gpsLong,
+                status: account.partner.status,
+            };
+        }
+
+        return response;
     }
 
     async refreshAccessToken(userId: number, refreshToken: string) {
@@ -244,11 +280,133 @@ export class AuthService {
         }
     }
 
+    async profile(userId: number, role: Role) {
+        // Query the database
+        const account = await this.prisma.account.findFirst({
+            where: { id: userId },
+            select: {
+                id: true,
+                username: true,
+                refreshToken: true,
+                createdDate: true,
+                role: true,
+                user: role === 'USER' ? true : false,
+                partner: role === 'PARTNER' ? true : false,
+            },
+        });
+
+        if (!account) {
+            throw new NotFoundException('Account not found');
+        }
+
+        return account;
+    }
+
+    async updateUserAccount(userId: number, updateData: any) {
+        const allowedUserFields = ['firstName', 'lastName', 'avatar', 'email', 'facebook'];
+        const allowedAccountFields = ['password'];
+
+        const userData: { email?: string } = this.filterFields(updateData, allowedUserFields);
+        const accountData = await this.filterAndHashPassword(updateData, allowedAccountFields);
+
+        const user = await this.prisma.user.findUnique({ where: { accountId: userId } });
+        if (!user) {
+            throw new NotFoundException(`User with ID ${userId} not found`);
+        }
+
+        // Check if the email is unique (if provided)
+        if (userData.email) {
+            const existingUser = await this.prisma.user.findUnique({ where: { email: userData.email } });
+            if (existingUser && existingUser.accountId !== userId) {
+                throw new ConflictException(`Email ${userData.email} is already in use`);
+            }
+        }
+
+        // Update User table fields
+        if (Object.keys(userData).length > 0) {
+            await this.prisma.user.update({
+                where: { accountId: userId },
+                data: userData,
+            });
+        }
+
+        // Update Account table fields
+        if (Object.keys(accountData).length > 0) {
+            await this.prisma.account.update({
+                where: { id: user.accountId },
+                data: accountData,
+            });
+        }
+
+        return { message: 'Account updated successfully' };
+    }
+
+    async updatePartnerAccount(partnerId: number, updateData: any) {
+        const allowedPartnerFields = ['companyName', 'avatar', 'field', 'address', 'gpsLat', 'gpsLong', 'status'];
+        const allowedAccountFields = ['password'];
+
+        const partnerData = this.filterFields(updateData, allowedPartnerFields);
+        const accountData = await this.filterAndHashPassword(updateData, allowedAccountFields);
+
+        const partner = await this.prisma.partner.findUnique({ where: { accountId: partnerId } });
+        if (!partner) {
+            throw new NotFoundException(`Partner with ID ${partnerId} not found`);
+        }
+
+        // Update Partner table fields
+        if (Object.keys(partnerData).length > 0) {
+            await this.prisma.partner.update({
+                where: { accountId: partnerId },
+                data: partnerData,
+            });
+        }
+
+        // Update Account table fields
+        if (Object.keys(accountData).length > 0) {
+            await this.prisma.account.update({
+                where: { id: partner.accountId },
+                data: accountData,
+            });
+        }
+
+        return { message: 'Account updated successfully' };
+    }
+
     private generateAccessToken(userId: number, role: Role): string {
         return this.jwtService.sign({ userId, role });
     }
 
     private generateRefreshToken(userId: number): string {
         return this.jwtService.sign({ userId }, { expiresIn: '7d' });
+    }
+
+    private filterFields(updateData: any, allowedFields: string[]) {
+        const filteredData = {};
+        for (const key of allowedFields) {
+            if (updateData[key] !== undefined) {
+                filteredData[key] = updateData[key];
+            }
+        }
+        return filteredData;
+    }
+
+    private async filterAndHashPassword(updateData: any, allowedFields: string[]) {
+        // Define filteredData with an explicit type
+        const filteredData: { [key: string]: any; password?: string } = {};
+
+        // Filter the allowed fields
+        for (const key of allowedFields) {
+            if (updateData[key] !== undefined) {
+                filteredData[key] = updateData[key];
+            }
+        }
+
+        // If password exists, hash it
+        if (filteredData.password) {
+            const salt = await bcrypt.genSalt();
+            filteredData.password = await bcrypt.hash(filteredData.password, salt);
+        }
+
+        return filteredData;
     }
 }
