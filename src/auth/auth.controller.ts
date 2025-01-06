@@ -11,11 +11,11 @@ export class AuthController {
     constructor(private readonly authService: AuthService) { }
 
     @Post('requestotp')
-    async requestOtp(@Body('phone') phone: string) {
-        if (!phone) {
-            throw new BadRequestException('Phone number is required');
+    async requestOtp(@Body('email') email: string) {
+        if (!email) {
+            throw new BadRequestException('Email is required');
         }
-        return this.authService.requestOtp(phone);
+        return this.authService.requestOtp(email);
     }
 
     @Post('register')

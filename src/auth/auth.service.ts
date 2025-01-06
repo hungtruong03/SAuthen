@@ -8,22 +8,27 @@ import { Role } from '@prisma/client';
 import { PartnerRegisterDto } from './dto/partner-register.dto';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class AuthService {
-    constructor(private prisma: PrismaService, private jwtService: JwtService, @InjectRedis() private readonly redisClient: Redis,) { }
+    constructor(
+        private prisma: PrismaService,
+        private jwtService: JwtService,
+        @InjectRedis() private readonly redisClient: Redis,
+    ) { }
 
-    async requestOtp(phone: string) {
-        const existingPhone = await this.prisma.user.findUnique({
-            where: { phone },
+    async requestOtp(email: string) {
+        const existingEmail = await this.prisma.user.findUnique({
+            where: { email },
         });
 
-        if (existingPhone) {
-            throw new ConflictException('Phone number is already registered');
+        if (existingEmail) {
+            throw new ConflictException('Email is already registered');
         }
 
-        const otpKey = `otp:${phone}`;
-        const cooldownKey = `otpCooldown:${phone}`;
+        const otpKey = `otp:${email}`;
+        const cooldownKey = `otpCooldown:${email}`;
 
         // Check cooldown
         const cooldown = await this.redisClient.get(cooldownKey);
@@ -42,14 +47,35 @@ export class AuthService {
         // Set cooldown
         await this.redisClient.set(cooldownKey, '1', 'EX', 30);
 
-        // Simulate sending OTP
-        console.log(`Sending OTP ${otp} to ${phone}`);
+        // Send OTP via Email
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASSKEY,
+            },
+        });
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'VouApp OTP Code',
+            text: `Your VouApp OTP code is: ${otp}. This code is valid for 5 minutes.`,
+        };
+
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log(`OTP ${otp} sent to ${email}`);
+        } catch (error) {
+            console.error('Error sending OTP via email:', error);
+            throw new BadRequestException('Failed to send OTP. Please try again later.');
+        }
 
         return { message: 'OTP sent successfully' };
     }
 
-    async verifyOtp(phone: string, otp: string): Promise<boolean> {
-        const otpKey = `otp:${phone}`;
+    async verifyOtp(email: string, otp: string): Promise<boolean> {
+        const otpKey = `otp:${email}`;
         const storedOtp = await this.redisClient.get(otpKey);
 
         if (!storedOtp || storedOtp !== otp) {
@@ -59,8 +85,8 @@ export class AuthService {
         return true;
     }
 
-    async deleteOtp(phone: string, otp: string): Promise<void> {
-        const otpKey = `otp:${phone}`;
+    async deleteOtp(email: string, otp: string): Promise<void> {
+        const otpKey = `otp:${email}`;
         const storedOtp = await this.redisClient.get(otpKey);
 
         if (!storedOtp || storedOtp !== otp) {
@@ -74,7 +100,7 @@ export class AuthService {
     async register(dto: RegisterDto) {
         const { username, password, firstName, lastName, email, phone, otp } = dto;
 
-        const isOtpValid = await this.verifyOtp(phone, otp);
+        const isOtpValid = await this.verifyOtp(email, otp);
         if (!isOtpValid) {
             throw new BadRequestException('Invalid or expired OTP');
         }
