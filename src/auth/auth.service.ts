@@ -9,6 +9,7 @@ import { PartnerRegisterDto } from './dto/partner-register.dto';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import * as nodemailer from 'nodemailer';
+import { FindAccountDto } from '../admin/dto/find-account.dto';
 
 @Injectable()
 export class AuthService {
@@ -156,7 +157,7 @@ export class AuthService {
         });
 
         // Delete the OTP after successful registration
-        await this.verifyOtp(phone, otp);
+        await this.verifyOtp(email, otp);
 
         return {
             accountId: account.id,
@@ -240,6 +241,10 @@ export class AuthService {
             throw new ForbiddenException('Your account is not verified yet. Please contact support.');
         }
 
+        if (account.disabled === true) {
+            throw new ForbiddenException('Your account is disabled. Please contact support.');
+        }
+
         // Generate Access Token and Refresh Token
         const accessToken = this.generateAccessToken(account.id, account.role);
         const refreshToken = this.generateRefreshToken(account.id);
@@ -316,6 +321,7 @@ export class AuthService {
                 refreshToken: true,
                 createdDate: true,
                 role: true,
+                disabled: true,
                 user: role === 'USER' ? true : false,
                 partner: role === 'PARTNER' ? true : false,
             },
@@ -434,5 +440,49 @@ export class AuthService {
         }
 
         return filteredData;
+    }
+
+    async createAdmin(username: string) {
+        const existingAccount = await this.prisma.account.findUnique({
+            where: { username },
+        });
+
+        if (existingAccount) {
+            throw new ConflictException('Username is already taken');
+        }
+
+        const hashedPassword = await bcrypt.hash('123456', 10);
+
+        return await this.prisma.account.create({
+            data: {
+                username,
+                password: hashedPassword,
+                role: 'ADMIN',
+            },
+        });
+    }
+
+    async checkExist(findAccountDto: FindAccountDto) {
+        const { userId, username } = findAccountDto;
+
+        // Query the database
+        const account = await this.prisma.account.findFirst({
+            where: userId ? { id: userId } : { username },
+            select: {
+                id: true,
+                username: true,
+                refreshToken: true,
+                createdDate: true,
+                role: true,
+                user: true,
+                partner: true,
+            },
+        });
+
+        if (!account) {
+            return { exist: false };
+        }
+
+        return { exist: true };
     }
 }

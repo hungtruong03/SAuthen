@@ -3,8 +3,9 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { PartnerRegisterDto } from './dto/partner-register.dto';
-import { UpdateUserDto } from 'src/admin/dto/update-user.dto';
-import { UpdatePartnerDto } from 'src/admin/dto/update-partner.dto';
+import { UpdateUserDto } from '../admin/dto/update-user.dto';
+import { UpdatePartnerDto } from '../admin/dto/update-partner.dto';
+import { FindAccountDto } from '../admin/dto/find-account.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -42,7 +43,7 @@ export class AuthController {
     @Get('profile')
     async getAccountInfo(@Request() req) {
         if (!req.role) {
-            throw new Error('Invalid role');
+            throw new UnauthorizedException('Invalid role');
         }
 
         return this.authService.profile(req.userId, req.role);
@@ -55,7 +56,7 @@ export class AuthController {
         }
 
         if (!req.userId) {
-            throw new Error('userId is missing');
+            throw new UnauthorizedException('userId is missing');
         }
 
         return this.authService.updateUserAccount(req.userId, updateData);
@@ -68,9 +69,32 @@ export class AuthController {
         }
 
         if (!req.userId) {
-            throw new Error('userId is missing');
+            throw new UnauthorizedException('userId is missing');
         }
 
         return this.authService.updatePartnerAccount(req.userId, updateData);
+    }
+
+    @Get('info')
+    async getAuthInfo(@Request() req) {
+        if (!req.userId) {
+            throw new UnauthorizedException('userId is missing');
+        }
+
+        if (!req.role) {
+            throw new UnauthorizedException('Invalid role');
+        }
+
+        return { userId: req.userId, role: req.role };
+    }
+
+    @Post('createadmin')
+    async createAdmin(@Body('username') username: string) {
+      return this.authService.createAdmin(username);
+    }
+
+    @Post('checkexist')
+    async checkExist(@Body() findAccountDto: FindAccountDto) {
+      return this.authService.checkExist(findAccountDto);
     }
 }

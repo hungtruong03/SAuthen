@@ -21,6 +21,7 @@ export class AdminService {
                 refreshToken: true,
                 createdDate: true,
                 role: true,
+                disabled: true,
                 user: true,
                 partner: true,
             },
@@ -173,7 +174,7 @@ export class AdminService {
 
     async updateUserAccount(userId: number, updateData: any) {
         const allowedUserFields = ['firstName', 'lastName', 'avatar', 'email', 'facebook'];
-        const allowedAccountFields = ['password'];
+        const allowedAccountFields = ['password', 'disabled'];
 
         const userData: { email?: string } = this.filterFields(updateData, allowedUserFields);
         const accountData = await this.filterAndHashPassword(updateData, allowedAccountFields);
@@ -212,7 +213,7 @@ export class AdminService {
 
     async updatePartnerAccount(partnerId: number, updateData: any) {
         const allowedPartnerFields = ['companyName', 'avatar', 'field', 'address', 'gpsLat', 'gpsLong', 'status'];
-        const allowedAccountFields = ['password'];
+        const allowedAccountFields = ['password', 'disabled'];
 
         const partnerData = this.filterFields(updateData, allowedPartnerFields);
         const accountData = await this.filterAndHashPassword(updateData, allowedAccountFields);

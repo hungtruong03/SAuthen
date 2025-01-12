@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsEnum, IsBoolean } from 'class-validator';
 import { Status } from '@prisma/client';
 
 export class UpdatePartnerDto {
@@ -33,4 +33,8 @@ export class UpdatePartnerDto {
   @IsOptional()
   @IsString()
   password?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  disabled?: boolean;
 }

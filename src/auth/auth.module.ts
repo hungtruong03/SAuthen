@@ -28,6 +28,6 @@ export class AuthModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(JwtMiddleware)
-      .forRoutes('friend/*', 'auth/update/*', 'auth/profile');
+      .forRoutes('friend/*', 'auth/update/*', 'auth/profile', 'auth/info');
   }
 }
