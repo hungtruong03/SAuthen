@@ -16,7 +16,7 @@ import { RedisModule } from '@nestjs-modules/ioredis';
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET || 'default_secret',
-      signOptions: { expiresIn: '15m' },
+      signOptions: { expiresIn: '1d' },
     }),
   ],
   providers: [AuthService],
@@ -28,6 +28,6 @@ export class AuthModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(JwtMiddleware)
-      .forRoutes('friend/*', 'auth/update/*', 'auth/profile', 'auth/info');
+      .forRoutes('friend/*', 'auth/authen/update/*', 'auth/authen/profile', 'auth/authen/info');
   }
 }

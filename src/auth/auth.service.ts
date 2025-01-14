@@ -291,7 +291,7 @@ export class AuthService {
         return response;
     }
 
-    async refreshAccessToken(userId: number, refreshToken: string) {
+    async refreshAccessToken(userId: string, refreshToken: string) {
         // Validate the Refresh Token
         const account = await this.prisma.account.findUnique({ where: { id: userId } });
         if (!account || account.refreshToken !== refreshToken) {
@@ -311,7 +311,7 @@ export class AuthService {
         }
     }
 
-    async profile(userId: number, role: Role) {
+    async profile(userId: string, role: Role) {
         // Query the database
         const account = await this.prisma.account.findFirst({
             where: { id: userId },
@@ -334,7 +334,7 @@ export class AuthService {
         return account;
     }
 
-    async updateUserAccount(userId: number, updateData: any) {
+    async updateUserAccount(userId: string, updateData: any) {
         const allowedUserFields = ['firstName', 'lastName', 'avatar', 'email', 'facebook'];
         const allowedAccountFields = ['password'];
 
@@ -373,7 +373,7 @@ export class AuthService {
         return { message: 'Account updated successfully' };
     }
 
-    async updatePartnerAccount(partnerId: number, updateData: any) {
+    async updatePartnerAccount(partnerId: string, updateData: any) {
         const allowedPartnerFields = ['companyName', 'avatar', 'field', 'address', 'gpsLat', 'gpsLong', 'status'];
         const allowedAccountFields = ['password'];
 
@@ -404,11 +404,21 @@ export class AuthService {
         return { message: 'Account updated successfully' };
     }
 
-    private generateAccessToken(userId: number, role: Role): string {
-        return this.jwtService.sign({ userId, role });
+    private generateAccessToken(userId: string, role: Role): string {
+        const ISS = this.getISS(role);
+        return this.jwtService.sign({ userId, role, iss: ISS }, { expiresIn: '1d' });
     }
 
-    private generateRefreshToken(userId: number): string {
+    private getISS(role: Role): string {
+        if (role === 'ADMIN') {
+            return 'JWT_SECRET_ADMIN';
+        } else if (role === 'PARTNER') {
+            return 'JWT_SECRET_PARTNER';
+        }
+        return 'JWT_SECRET';
+    }
+
+    private generateRefreshToken(userId: string): string {
         return this.jwtService.sign({ userId }, { expiresIn: '7d' });
     }
 
@@ -484,5 +494,95 @@ export class AuthService {
         }
 
         return { exist: true };
+    }
+
+    async getAccountByPhone(phoneNumber: string) {
+        const user = await this.prisma.user.findFirst({
+            where: { phone: phoneNumber },
+            select: {
+                firstName: true,
+                lastName: true,
+                phone: true,
+                email: true,
+                facebook: true,
+                avatar: true,
+                account: true,
+            },
+        });
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        return user;
+    }
+
+    async getAccountsByRoles(roles: Role[]) {
+        try {
+            const accounts = await this.prisma.account.findMany({
+                where: {
+                    role: { in: roles },
+                },
+                select: {
+                    id: true,
+                    username: true,
+                    createdDate: true,
+                    disabled: true,
+                    user: true,
+                    partner: true,
+                },
+            });
+
+            return accounts;
+        } catch (error) {
+            console.error('Error fetching accounts:', error);
+            throw new BadRequestException('Error fetching accounts');
+        }
+    }
+
+    async getAllAccounts() {
+        try {
+            const accounts = await this.prisma.account.findMany({
+                select: {
+                    id: true,
+                    username: true,
+                    createdDate: true,
+                    disabled: true,
+                    role: true,
+                    user: true,
+                    partner: true,
+                },
+            });
+
+            return accounts;
+        } catch (error) {
+            throw new BadRequestException('Error fetching accounts');
+        }
+    }
+
+    async getNewlyRegisteredAccounts(role: Role, days: number) {
+        const result = [];
+
+        for (let i = 0; i < days; i++) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+
+            const count = await this.prisma.account.count({
+                where: {
+                    role: role,
+                    createdDate: {
+                        gte: new Date(date.setHours(0, 0, 0, 0)),
+                        lt: new Date(date.setHours(23, 59, 59, 999)),
+                    },
+                },
+            });
+
+            result.push({
+                date: date.toISOString().split('T')[0],
+                count: count,
+            });
+        }
+
+        return result.reverse();
     }
 }

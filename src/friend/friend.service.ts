@@ -5,27 +5,24 @@ import { PrismaService } from '../prisma/prisma.service';
 export class FriendsService {
   constructor(private prisma: PrismaService) { }
 
-  // Add a friend
-  async addFriend(userId: number, friendId: number) {
+  async addFriend(userId: string, friendId: string) {
     if (userId === friendId) {
       throw new ConflictException('You cannot add yourself as a friend');
     }
 
-    // Check if both users exist
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    const friend = await this.prisma.user.findUnique({ where: { id: friendId } });
+    const [user, friend] = await Promise.all([
+      this.prisma.user.findUnique({ where: { accountId: userId } }),
+      this.prisma.user.findUnique({ where: { accountId: friendId } }),
+    ]);
 
     if (!user || !friend) {
       throw new NotFoundException('User or Friend not found');
     }
 
-    // Check if they are already friends
     const existingFriendship = await this.prisma.user.findFirst({
       where: {
-        AND: [
-          { id: userId },
-          { friends: { some: { id: friendId } } },
-        ],
+        accountId: userId,
+        friends: { some: { accountId: friendId } },
       },
     });
 
@@ -33,41 +30,37 @@ export class FriendsService {
       throw new ConflictException('You are already friends');
     }
 
-    // Create the friendship (Mutual relationship)
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { accountId: userId },
       data: {
-        friends: { connect: { id: friendId } },
+        friends: { connect: { accountId: friendId } },
       },
     });
 
     await this.prisma.user.update({
-      where: { id: friendId },
+      where: { accountId: friendId },
       data: {
-        friends: { connect: { id: userId } },
+        friends: { connect: { accountId: userId } },
       },
     });
 
     return { message: 'Friend added successfully' };
   }
 
-  // Remove a friend
-  async removeFriend(userId: number, friendId: number) {
-    // Check if both users exist
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    const friend = await this.prisma.user.findUnique({ where: { id: friendId } });
+  async removeFriend(userId: string, friendId: string) {
+    const [user, friend] = await Promise.all([
+      this.prisma.user.findUnique({ where: { accountId: userId } }),
+      this.prisma.user.findUnique({ where: { accountId: friendId } }),
+    ]);
 
     if (!user || !friend) {
       throw new NotFoundException('User or Friend not found');
     }
 
-    // Check if they are friends
     const existingFriendship = await this.prisma.user.findFirst({
       where: {
-        AND: [
-          { id: userId },
-          { friends: { some: { id: friendId } } },
-        ],
+        accountId: userId,
+        friends: { some: { accountId: friendId } },
       },
     });
 
@@ -75,28 +68,26 @@ export class FriendsService {
       throw new NotFoundException('Friendship not found');
     }
 
-    // Remove the friendship (Mutual disconnection)
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { accountId: userId },
       data: {
-        friends: { disconnect: { id: friendId } },
+        friends: { disconnect: { accountId: friendId } },
       },
     });
 
     await this.prisma.user.update({
-      where: { id: friendId },
+      where: { accountId: friendId },
       data: {
-        friends: { disconnect: { id: userId } },
+        friends: { disconnect: { accountId: userId } },
       },
     });
 
     return { message: 'Friend removed successfully' };
   }
 
-  // List friends
-  async listFriends(userId: number) {
+  async listFriends(userId: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { accountId: userId },
       include: { friends: true },
     });
 

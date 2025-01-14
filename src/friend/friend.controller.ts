@@ -5,9 +5,8 @@ import { FriendsService } from './friend.service';
 export class FriendsController {
   constructor(private friendsService: FriendsService) { }
 
-  // Add friend
   @Post('add')
-  async addFriend(@Body() { friendId }: { friendId: number }, @Request() req) {
+  async addFriend(@Body() { friendId }: { friendId: string }, @Request() req) {
     if (req.role !== 'USER') {
       throw new UnauthorizedException('You are not authorized to access this resource');
     }
@@ -16,9 +15,8 @@ export class FriendsController {
     return this.friendsService.addFriend(userId, friendId);
   }
 
-  // Remove friend
   @Delete('remove')
-  async removeFriend(@Body() { friendId }: { friendId: number }, @Request() req) {
+  async removeFriend(@Body() { friendId }: { friendId: string }, @Request() req) {
     if (req.role !== 'USER') {
       throw new UnauthorizedException('You are not authorized to access this resource');
     }
@@ -27,7 +25,6 @@ export class FriendsController {
     return this.friendsService.removeFriend(userId, friendId);
   }
 
-  // List friends
   @Get('list')
   async listFriends(@Request() req) {
     if (req.role !== 'USER') {

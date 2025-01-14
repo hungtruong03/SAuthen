@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Delete, Request, UnauthorizedException, Param, ParseIntPipe } from '@nestjs/common';
+import { Body, Controller, Post, Delete, Request, UnauthorizedException, Param, ParseIntPipe, Get } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { FindAccountDto } from './dto/find-account.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -47,7 +47,7 @@ export class AdminController {
   }
 
   @Post('update/user/:userId')
-  async updateUserAccount(@Request() req, @Param('userId', ParseIntPipe) userId: number, @Body() updateData: UpdateUserDto) {
+  async updateUserAccount(@Request() req, @Param('userId') userId: string, @Body() updateData: UpdateUserDto) {
     if (req.role !== 'ADMIN') {
       throw new UnauthorizedException('You are not authorized to access this resource');
     }
@@ -60,7 +60,7 @@ export class AdminController {
   }
 
   @Post('update/partner/:partnerId')
-  async updatePartnerAccount(@Request() req, @Param('partnerId', ParseIntPipe) partnerId: number, @Body() updateData: UpdatePartnerDto) {
+  async updatePartnerAccount(@Request() req, @Param('partnerId') partnerId: string, @Body() updateData: UpdatePartnerDto) {
     if (req.role !== 'ADMIN') {
       throw new UnauthorizedException('You are not authorized to access this resource');
     }
@@ -68,6 +68,8 @@ export class AdminController {
     if (!partnerId) {
       throw new Error('PartnerId is required');
     }
+
+    console.log(updateData);
 
     return this.adminService.updatePartnerAccount(partnerId, updateData);
   }

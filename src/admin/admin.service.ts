@@ -1,9 +1,10 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FindAccountDto } from './dto/find-account.dto';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from './dto/create-user.dto';
 import { CreatePartnerDto } from './dto/create-partner.dto';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
@@ -172,7 +173,7 @@ export class AdminService {
         return bcrypt.hash(password, salt);
     }
 
-    async updateUserAccount(userId: number, updateData: any) {
+    async updateUserAccount(userId: string, updateData: any) {
         const allowedUserFields = ['firstName', 'lastName', 'avatar', 'email', 'facebook'];
         const allowedAccountFields = ['password', 'disabled'];
 
@@ -211,7 +212,7 @@ export class AdminService {
         return { message: 'User account updated successfully' };
     }
 
-    async updatePartnerAccount(partnerId: number, updateData: any) {
+    async updatePartnerAccount(partnerId: string, updateData: any) {
         const allowedPartnerFields = ['companyName', 'avatar', 'field', 'address', 'gpsLat', 'gpsLong', 'status'];
         const allowedAccountFields = ['password', 'disabled'];
 
