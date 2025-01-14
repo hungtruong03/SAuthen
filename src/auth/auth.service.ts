@@ -10,6 +10,7 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import { Redis } from 'ioredis';
 import * as nodemailer from 'nodemailer';
 import { FindAccountDto } from '../admin/dto/find-account.dto';
+import { WebSocket } from 'ws';
 
 @Injectable()
 export class AuthService {
@@ -18,6 +19,8 @@ export class AuthService {
         private jwtService: JwtService,
         @InjectRedis() private readonly redisClient: Redis,
     ) { }
+
+    private notificationSocket: WebSocket | null = null;
 
     async requestOtp(email: string) {
         const existingEmail = await this.prisma.user.findUnique({
@@ -288,23 +291,17 @@ export class AuthService {
             };
         }
         try {
-            let notificationSocket = null;
-            // Tạo token
-            const token = accessToken;
-
-            // Kết nối tới Notification Service qua WebSocket
-            if (notificationSocket) {
-                notificationSocket.close(); // Đóng kết nối cũ (nếu có)
+            if (this.notificationSocket) {
+                this.notificationSocket.close();
             }
 
-            notificationSocket = new WebSocket(`ws://localhost:3100?token=${token}`);
+            this.notificationSocket = new WebSocket(`ws://localhost:3005?token=${accessToken}`);
 
-            notificationSocket.on('open', () => {
+            this.notificationSocket.on('open', () => {
                 console.log(`🔗 User ${account.id} connected to Notification Service`);
             });
 
-            notificationSocket.on('message', (message) => {
-                // Chuyển đổi Buffer sang chuỗi
+            this.notificationSocket.on('message', (message) => {
                 const jsonString = Buffer.isBuffer(message)
                     ? Buffer.from(message).toString('utf8')
                     : message;
@@ -313,17 +310,17 @@ export class AuthService {
                 console.log(`📩 Notification received for User ${account.id}:`, parsedData);
             });
 
-            notificationSocket.on('close', () => {
+            this.notificationSocket.on('close', () => {
                 console.log(`❌ WebSocket for User ${account.id} disconnected`);
             });
 
-            notificationSocket.on('error', (error) => {
+            this.notificationSocket.on('error', (error) => {
                 console.error(`⚠️ WebSocket error for User ${account.id}:`, error);
             });
-
         } catch (err) {
-            console.log(err);
+            console.error('Error setting up WebSocket:', err);
         }
+
         return response;
     }
 
