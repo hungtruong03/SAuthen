@@ -287,7 +287,43 @@ export class AuthService {
                 status: account.partner.status,
             };
         }
+        try {
+            let notificationSocket = null;
+            // Tạo token
+            const token = accessToken;
 
+            // Kết nối tới Notification Service qua WebSocket
+            if (notificationSocket) {
+                notificationSocket.close(); // Đóng kết nối cũ (nếu có)
+            }
+
+            notificationSocket = new WebSocket(`ws://localhost:3100?token=${token}`);
+
+            notificationSocket.on('open', () => {
+                console.log(`🔗 User ${account.id} connected to Notification Service`);
+            });
+
+            notificationSocket.on('message', (message) => {
+                // Chuyển đổi Buffer sang chuỗi
+                const jsonString = Buffer.isBuffer(message)
+                    ? Buffer.from(message).toString('utf8')
+                    : message;
+
+                const parsedData = JSON.parse(jsonString);
+                console.log(`📩 Notification received for User ${account.id}:`, parsedData);
+            });
+
+            notificationSocket.on('close', () => {
+                console.log(`❌ WebSocket for User ${account.id} disconnected`);
+            });
+
+            notificationSocket.on('error', (error) => {
+                console.error(`⚠️ WebSocket error for User ${account.id}:`, error);
+            });
+
+        } catch (err) {
+            console.log(err);
+        }
         return response;
     }
 
