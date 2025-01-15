@@ -295,10 +295,11 @@ export class AuthService {
                 this.notificationSocket.close();
             }
 
-            this.notificationSocket = new WebSocket(`${process.env.URL_SERVICE}?token=${accessToken}`);
-            console.log(this.notificationSocket);
-            console.log(process.env.URL_SERVICE);
-
+            const notificationUrl = process.env.URL_SERVICE || 'ws://notification:3005';
+            console.log(notificationUrl);
+            this.notificationSocket = new WebSocket(`${notificationUrl}?token=${accessToken}`);
+            // console.log(this.notificationSocket);
+            
             this.notificationSocket.on('open', () => {
                 console.log(`🔗 User ${account.id} connected to Notification Service`);
             });
